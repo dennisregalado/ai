@@ -1,5 +1,5 @@
 import 'server-only';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 export async function getUserCreditsInfo({ userId }: { userId: string }) {
   try {
@@ -14,6 +14,8 @@ export async function getUserCreditsInfo({ userId }: { userId: string }) {
       if (error.code === 'PGRST116') return null; // No rows returned
       throw error;
     }
+
+    console.log('userInfo', userInfo);
 
     return {
       totalCredits: userInfo.credits,
@@ -65,14 +67,24 @@ export async function reserveAvailableCredits({
       amount_to_reserve: amountToReserve,
       required_available: amountToReserve,
     });
-
-    if (error) {
-      console.error('Failed to reserve credits:', error);
-      return { success: false, error: 'Failed to reserve credits' };
-    }
-
-    if (!data) {
-      return { success: false, error: 'Failed to reserve credits' };
+    
+    if (error || !data) {
+      // Fallback: function missing (local dev) — try naive row update with RLS
+      if ((error as any)?.code === 'PGRST202') {
+        const updated = await supabase
+          .from('users')
+          .update({ reserved_credits: userInfo.reservedCredits + amountToReserve })
+          .eq('id', userId)
+          .select('reserved_credits')
+          .single();
+        if ((updated as any).error) {
+          console.error('Fallback reserve failed:', (updated as any).error);
+          return { success: false, error: 'Failed to reserve credits' };
+        }
+      } else {
+        console.error('Failed to reserve credits:', error);
+        return { success: false, error: 'Failed to reserve credits' };
+      }
     }
 
     return {
@@ -97,7 +109,6 @@ export async function finalizeCreditsUsage({
   try {
     const supabase = await createClient();
 
-    // Use RPC to atomically finalize credit usage
     const { error } = await supabase.rpc('finalize_credit_usage', {
       user_id: userId,
       reserved_amount: reservedAmount,
@@ -105,8 +116,24 @@ export async function finalizeCreditsUsage({
     });
 
     if (error) {
-      console.error('Failed to finalize credits usage:', error);
-      throw error;
+      if ((error as any).code === 'PGRST202') {
+        // Fallback: do a single-row update under RLS
+        const info = await getUserCreditsInfo({ userId });
+        if (!info) throw error;
+        const newReserved = Math.max(info.reservedCredits - reservedAmount, 0);
+        const newCredits = Math.max(info.totalCredits - actualAmount, 0);
+        const { error: updError } = await supabase
+          .from('users')
+          .update({
+            reserved_credits: newReserved,
+            credits: newCredits,
+          })
+          .eq('id', userId);
+        if (updError) throw updError;
+      } else {
+        console.error('Failed to finalize credits usage:', error);
+        throw error;
+      }
     }
   } catch (error) {
     console.error('Failed to finalize credits usage:', error);
@@ -124,18 +151,29 @@ export async function releaseReservedCredits({
   try {
     const supabase = await createClient();
 
-    // Use RPC to atomically finalize credit usage
     const { error } = await supabase.rpc('release_reserved_credits', {
       user_id: userId,
       reserved_amount: amount,
     });
 
     if (error) {
-      console.error('Failed to release reserved credits:', error);
-      throw error;
+      if ((error as any).code === 'PGRST202') {
+        // Fallback: decrement reserved_credits with RLS
+        const info = await getUserCreditsInfo({ userId });
+        if (!info) throw error;
+        const newReserved = Math.max(info.reservedCredits - amount, 0);
+        const { error: updError } = await supabase
+          .from('users')
+          .update({ reserved_credits: newReserved })
+          .eq('id', userId);
+        if (updError) throw updError;
+      } else {
+        console.error('Failed to release reserved credits:', error);
+        throw error;
+      }
     }
   } catch (error) {
-    console.error('Failed to finalize credits usage:', error);
+    console.error('Failed to release reserved credits:', error);
     throw error;
   }
 }
