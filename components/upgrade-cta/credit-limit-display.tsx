@@ -6,7 +6,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/use-supabase-auth';
 import { useGetCredits } from '@/hooks/chat-sync-hooks';
 
 interface CreditLimitDisplayProps {

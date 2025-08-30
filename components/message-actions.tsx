@@ -1,6 +1,6 @@
 import { useCopyToClipboard } from 'usehooks-ts';
 
-import type { Vote } from '@/lib/db/schema';
+import type { Vote } from '@/lib/db/types';
 
 import { CopyIcon, ThumbDownIcon, ThumbUpIcon } from './icons';
 import { Actions, Action } from '@/components/ai-elements/actions';

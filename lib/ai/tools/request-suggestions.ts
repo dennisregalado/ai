@@ -1,20 +1,20 @@
 import { z } from 'zod';
-import type { Session } from 'next-auth';
+import type { User } from '@supabase/supabase-js';
 import { streamObject, tool } from 'ai';
-import { getDocumentById, saveSuggestions } from '@/lib/db/queries';
-import type { Suggestion } from '@/lib/db/schema';
+import { getDocumentById, saveSuggestions } from '@/lib/db/supabase-queries';
+import type { Suggestion } from '@/lib/db/types';
 import { generateUUID } from '@/lib/utils';
 import { getLanguageModel } from '../providers';
 import { DEFAULT_ARTIFACT_SUGGESTION_MODEL } from '../all-models';
 import type { StreamWriter } from '../types';
 
 interface RequestSuggestionsProps {
-  session: Session;
+  user: User;
   dataStream: StreamWriter;
 }
 
 export const requestSuggestions = ({
-  session,
+  user,
   dataStream,
 }: RequestSuggestionsProps) =>
   tool({
@@ -90,8 +90,8 @@ Behavior:
         suggestions.push(suggestion);
       }
 
-      if (session.user?.id) {
-        const userId = session.user.id;
+      if (user.id) {
+        const userId = user.id;
 
         await saveSuggestions({
           suggestions: suggestions.map((suggestion) => ({

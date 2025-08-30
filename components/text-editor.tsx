@@ -17,7 +17,7 @@ import {
 } from '@lexical/markdown';
 import { $getRoot } from 'lexical';
 
-import type { Suggestion } from '@/lib/db/schema';
+import type { Suggestion } from '@/lib/db/types';
 import { createEditorConfig, handleEditorChange } from '@/lib/editor/config';
 import {
   projectWithPositions,

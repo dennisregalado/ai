@@ -12,7 +12,7 @@ import {
   saveDocuments,
   updateChatIsPinnedById,
   deleteChatById,
-} from '@/lib/db/queries';
+} from '@/lib/db/supabase-queries';
 import {
   createTRPCRouter,
   protectedProcedure,
@@ -32,7 +32,7 @@ import {
   cloneAttachmentsInMessages,
 } from '@/lib/clone-messages';
 import { DEFAULT_TITLE_MODEL } from '@/lib/ai/all-models';
-import type { DBMessage } from '@/lib/db/schema';
+import type { DBMessage } from '@/lib/db/types';
 import type { ChatMessage } from '@/lib/ai/types';
 import { MAX_MESSAGE_CHARS } from '@/lib/limits/tokens';
 
@@ -42,9 +42,9 @@ export const chatRouter = createTRPCRouter({
 
     // Sort chats by pinned status, then by last updated date
     chats.sort((a, b) => {
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
 
     return chats.map(dbChatToUIChat);
@@ -59,7 +59,7 @@ export const chatRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const chat = await getChatById({ id: input.chatId });
 
-      if (!chat || chat.userId !== ctx.user.id) {
+      if (!chat || chat.user_id !== ctx.user.id) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Chat not found',
@@ -78,7 +78,7 @@ export const chatRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       // Verify the chat belongs to the user
       const chat = await getChatById({ id: input.chatId });
-      if (!chat || chat.userId !== ctx.user.id) {
+      if (!chat || chat.user_id !== ctx.user.id) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Chat not found',
@@ -99,7 +99,7 @@ export const chatRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       // Verify the chat belongs to the user
       const chat = await getChatById({ id: input.chatId });
-      if (!chat || chat.userId !== ctx.user.id) {
+      if (!chat || chat.user_id !== ctx.user.id) {
         throw new Error('Chat not found or access denied');
       }
 
@@ -129,7 +129,7 @@ export const chatRouter = createTRPCRouter({
 
       // Verify the chat belongs to the user
       const chat = await getChatById({ id: message.chatId });
-      if (!chat || chat.userId !== ctx.user.id) {
+      if (!chat || chat.user_id !== ctx.user.id) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Access denied' });
       }
 
@@ -152,7 +152,7 @@ export const chatRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       // Verify the chat belongs to the user
       const chat = await getChatById({ id: input.chatId });
-      if (!chat || chat.userId !== ctx.user.id) {
+      if (!chat || chat.user_id !== ctx.user.id) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Chat not found or access denied',
@@ -178,7 +178,7 @@ export const chatRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       // Verify the chat belongs to the user
       const chat = await getChatById({ id: input.chatId });
-      if (!chat || chat.userId !== ctx.user.id) {
+      if (!chat || chat.user_id !== ctx.user.id) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Chat not found or access denied',
@@ -202,7 +202,7 @@ export const chatRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const chat = await getChatById({ id: input.chatId });
-      if (!chat || chat.userId !== ctx.user.id) {
+      if (!chat || chat.user_id !== ctx.user.id) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Chat not found or access denied',

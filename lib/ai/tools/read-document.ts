@@ -1,15 +1,15 @@
 import { tool } from 'ai';
-import type { Session } from 'next-auth';
+import type { User } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { getDocumentById } from '@/lib/db/queries';
+import { getDocumentById } from '@/lib/db/supabase-queries';
 import type { StreamWriter } from '../types';
 
 interface ReadDocumentProps {
-  session: Session;
+  user: User;
   dataStream: StreamWriter;
 }
 
-export const readDocument = ({ session, dataStream }: ReadDocumentProps) =>
+export const readDocument = ({ user, dataStream }: ReadDocumentProps) =>
   tool({
     description: `Read the contents of a document created earlier in this chat.
 
@@ -30,7 +30,7 @@ Avoid:
         };
       }
 
-      if (document.userId !== session.user?.id) {
+      if (document.user_id !== session.id) {
         return {
           error: 'Unauthorized access to document',
         };

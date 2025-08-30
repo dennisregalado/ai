@@ -60,8 +60,8 @@ Sparka AI is built with modern technologies for scalability and performance:
 ### **Backend**
 - **Vercel AI SDK**: Unified AI provider integration
 - **tRPC**: End-to-end typesafe APIs
-- **Drizzle ORM**: Type-safe database operations
-- **PostgreSQL**: Robust data persistence
+- **Supabase**: Authentication and PostgreSQL database
+- **PostgreSQL**: Robust data persistence via Supabase
 - **Redis**: Caching and real-time features
 
 ### **AI Integration**
@@ -73,7 +73,7 @@ Sparka AI is built with modern technologies for scalability and performance:
 
 ### **Prerequisites**
 - Node.js 18+ or Bun
-- PostgreSQL database
+- Supabase account and project
 - Redis (optional, for scaling)
 
 ### **Quick Start**
@@ -85,24 +85,79 @@ Sparka AI is built with modern technologies for scalability and performance:
    bun install
    ```
 
-2. **Environment Setup**
+2. **Supabase Setup**
+   
+   Create a new Supabase project at [supabase.com](https://supabase.com):
+   
+   - Go to your project settings → API
+   - Copy your project URL and anon key
+   - Go to Authentication → Providers and enable Google/GitHub OAuth
+   - Configure OAuth redirect URLs: `http://localhost:3000/auth/callback` (development)
+
+3. **Environment Setup**
    ```bash
    cp .env.example .env.local
-   # Configure your environment variables
    ```
-
-3. **Database Setup**
+   
+   Update your `.env.local` with your Supabase credentials:
    ```bash
-   bun run db:migrate
+   # Supabase Configuration
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+   
+   # OAuth Providers (configure in Supabase Auth settings)
+   AUTH_GOOGLE_ID=your_google_client_id
+   AUTH_GOOGLE_SECRET=your_google_client_secret
+   AUTH_GITHUB_ID=your_github_client_id
+   AUTH_GITHUB_SECRET=your_github_client_secret
+   
+   # Add your AI provider keys and other services...
    ```
 
-4. **Development Server**
+4. **Database Setup**
+   
+   Run the migration to set up your database schema:
+   ```bash
+   # Using local Supabase (recommended for development)
+   npx supabase start
+   npx supabase db push
+   
+   # OR connect to your hosted Supabase project
+   npx supabase link --project-ref your-project-ref
+   npx supabase db push
+   ```
+
+5. **Development Server**
    ```bash
    bun dev
    ```
 
 Visit [http://localhost:3000](http://localhost:3000) to start using Sparka AI locally.
 
+## 🔄 Migration from Original Sparka
+
+This fork has been refactored to use **Supabase** instead of the original **Prisma + PlanetScale + NextAuth** stack:
+
+### **What Changed:**
+- ✅ **Authentication**: NextAuth.js → Supabase Auth (Google & GitHub OAuth)
+- ✅ **Database**: Prisma + PlanetScale → Supabase PostgreSQL with Row Level Security
+- ✅ **API Layer**: tRPC maintained (now uses Supabase client in procedures)
+- ✅ **Schema**: Converted from Prisma schema to Supabase migrations
+- ✅ **Session Management**: NextAuth sessions → Supabase auth state
+
+### **What Stayed the Same:**
+- ✅ **tRPC**: All your existing tRPC procedures work the same way
+- ✅ **UI/UX**: No changes to the user interface
+- ✅ **AI Features**: All AI capabilities remain unchanged
+- ✅ **Type Safety**: Full TypeScript support maintained
+
+### **Benefits of Supabase:**
+- 🚀 **Simpler Setup**: No need for separate auth and database services
+- 🔒 **Built-in Security**: Row Level Security policies out of the box
+- 📊 **Real-time**: Built-in real-time subscriptions (future feature)
+- 🛠️ **Developer Experience**: Supabase Studio for database management
+- 💰 **Cost Effective**: Generous free tier with auth + database included
 
 ## 🙏 Acknowledgements
 

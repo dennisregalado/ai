@@ -6,7 +6,7 @@ import {
   stepCountIs,
 } from 'ai';
 import { replaceFilePartUrlByBinaryDataInMessages } from '@/lib/utils/download-assets';
-import { auth } from '@/app/(auth)/auth';
+import { getUser } from '@/lib/auth/supabase-auth';
 import { systemPrompt } from '@/lib/ai/prompts';
 import {
   getChatById,
@@ -15,7 +15,7 @@ import {
   saveMessage,
   updateMessage,
   getMessageById,
-} from '@/lib/db/queries';
+} from '@/lib/db/supabase-queries';
 import { generateUUID } from '@/lib/utils';
 import { generateTitleFromUserMessage } from '../../actions';
 import { getTools } from '@/lib/ai/tools/tools';
@@ -133,9 +133,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const session = await auth();
+    const user = await getUser();
 
-    const userId = session?.user?.id || null;
+    const userId = user?.id || null;
     const isAnonymous = userId === null;
     let anonymousSession: AnonymousSession | null = null;
 
@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
     if (!isAnonymous) {
       const chat = await getChatById({ id: chatId });
 
-      if (chat && chat.userId !== userId) {
+      if (chat && chat.user_id !== userId) {
         log.warn('Unauthorized - chat ownership mismatch');
         return new Response('Unauthorized', { status: 401 });
       }
@@ -244,7 +244,7 @@ export async function POST(request: NextRequest) {
 
         await saveChat({ id: chatId, userId, title });
       } else {
-        if (chat.userId !== userId) {
+        if (chat.user_id !== userId) {
           log.warn('Unauthorized - chat ownership mismatch');
           return new Response('Unauthorized', { status: 401 });
         }

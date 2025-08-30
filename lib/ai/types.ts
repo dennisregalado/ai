@@ -12,7 +12,7 @@ import type { retrieve } from '@/lib/ai/tools/retrieve';
 import type { InferUITool, UIMessage, UIMessageStreamWriter } from 'ai';
 
 import type { ArtifactKind } from '../artifacts/artifact-kind';
-import type { Suggestion } from '@/lib/db/schema';
+import type { Suggestion } from '@/lib/db/types';
 import type { ResearchUpdate } from './tools/research-updates-schema';
 import type { createDocumentTool as createDocument } from './tools/create-document';
 import type { ModelId } from './model-id';

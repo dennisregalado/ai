@@ -4,7 +4,7 @@ import { Messages } from './messages';
 import { MultimodalInput } from './multimodal-input';
 import { CloneChatButton } from '@/components/clone-chat-button';
 import { chatStore } from '@/lib/stores/chat-store';
-import type { Vote } from '@/lib/db/schema';
+import type { Vote } from '@/lib/db/types';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { ChatMessage } from '@/lib/ai/types';
 import { cn } from '@/lib/utils';

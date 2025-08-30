@@ -12,7 +12,7 @@ import type { UIArtifact } from './artifact';
 import type { ArtifactKind } from '@/lib/artifacts/artifact-kind';
 import { FileIcon, FullscreenIcon, LoaderIcon, PencilEditIcon } from './icons';
 import { cn } from '@/lib/utils';
-import type { Document } from '@/lib/db/schema';
+import type { Document } from '@/lib/db/types';
 import { InlineDocumentSkeleton } from './document-skeleton';
 import { Editor } from './text-editor';
 import { DocumentToolCall, DocumentToolResult } from './document';

@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useDebounceCallback, useWindowSize } from 'usehooks-ts';
 import { useIsMobile } from '@/hooks/use-mobile';
-import type { Document, Vote } from '@/lib/db/schema';
+import type { Document, Vote } from '@/lib/db/types';
 //
 import { Toolbar } from './toolbar';
 import { VersionFooter } from './version-footer';

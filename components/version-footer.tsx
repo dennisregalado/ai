@@ -2,7 +2,7 @@
 import { motion } from 'motion/react';
 import { useWindowSize } from 'usehooks-ts';
 
-import type { Document } from '@/lib/db/schema';
+import type { Document } from '@/lib/db/types';
 
 import { LoaderIcon } from './icons';
 import { Button } from './ui/button';

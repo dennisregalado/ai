@@ -10,7 +10,7 @@ import {
   getPublicDocumentsById,
   saveDocument,
   getSuggestionsByDocumentId,
-} from '@/lib/db/queries';
+} from '@/lib/db/supabase-queries';
 import type { ArtifactKind } from '@/lib/artifacts/artifact-kind';
 import { TRPCError } from '@trpc/server';
 

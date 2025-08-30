@@ -1,5 +1,5 @@
 import type { UIChat } from '@/lib/types/uiChat';
-import type { DBMessage, Chat } from '@/lib/db/schema';
+import type { DBMessage, Chat } from '@/lib/db/types';
 import type { ChatMessage, UiToolName } from './ai/types';
 import type { ModelId } from './ai/model-id';
 
@@ -7,12 +7,12 @@ import type { ModelId } from './ai/model-id';
 export function dbChatToUIChat(chat: Chat): UIChat {
   return {
     id: chat.id,
-    createdAt: chat.createdAt,
-    updatedAt: chat.updatedAt,
+    createdAt: chat.created_at,
+    updatedAt: chat.updated_at,
     title: chat.title,
     visibility: chat.visibility,
-    userId: chat.userId,
-    isPinned: chat.isPinned,
+    userId: chat.user_id,
+    isPinned: chat.is_pinned,
   };
 }
 
@@ -22,11 +22,11 @@ export function dbMessageToChatMessage(message: DBMessage): ChatMessage {
     parts: message.parts as ChatMessage['parts'],
     role: message.role as ChatMessage['role'],
     metadata: {
-      createdAt: message.createdAt,
-      isPartial: message.isPartial,
-      parentMessageId: message.parentMessageId,
-      selectedModel: (message.selectedModel as ModelId) || ('' as ModelId),
-      selectedTool: (message.selectedTool as UiToolName | null) || undefined,
+      createdAt: message.created_at,
+      isPartial: message.is_partial,
+      parentMessageId: message.parent_message_id,
+      selectedModel: (message.selected_model as ModelId) || ('' as ModelId),
+      selectedTool: (message.selected_tool as UiToolName | null) || undefined,
     },
   };
 }
@@ -41,15 +41,15 @@ export function chatMessageToDbMessage(
 
   return {
     id: message.id,
-    chatId: chatId,
+    chat_id: chatId,
     role: message.role,
     parts: message.parts,
     attachments: [],
-    createdAt: message.metadata?.createdAt || new Date(),
+    created_at: message.metadata?.createdAt || new Date().toISOString(),
     annotations: [],
-    isPartial: isPartial,
-    parentMessageId: parentMessageId,
-    selectedModel: selectedModel,
-    selectedTool: message.metadata?.selectedTool || null,
+    is_partial: isPartial,
+    parent_message_id: parentMessageId,
+    selected_model: selectedModel,
+    selected_tool: message.metadata?.selectedTool || null,
   };
 }
