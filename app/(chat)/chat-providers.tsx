@@ -1,6 +1,8 @@
 'use client';
 
-import type { User } from 'next-auth';
+
+import type { User } from '@supabase/supabase-js';
+
 import { ChatIdProvider } from '@/providers/chat-id-provider';
 import { MessageTreeProvider } from '@/providers/message-tree-provider';
 import { DataStreamProvider } from '@/components/data-stream-provider';

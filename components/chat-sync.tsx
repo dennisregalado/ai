@@ -3,7 +3,8 @@
 import { useEffect, useMemo } from 'react';
 import { DefaultChatTransport } from 'ai';
 import { useChat } from '@ai-sdk/react';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/use-supabase-auth';
+
 import { toast } from 'sonner';
 import type { ChatMessage } from '@/lib/ai/types';
 import { generateUUID, fetchWithErrorHandlers } from '@/lib/utils';

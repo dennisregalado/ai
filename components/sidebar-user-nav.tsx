@@ -1,8 +1,9 @@
 'use client';
 import { Coins } from 'lucide-react';
 import Image from 'next/image';
-import type { User } from 'next-auth';
-import { signOut } from 'next-auth/react';
+import type { User } from '@supabase/supabase-js';
+
+import { useSupabaseAuth } from '@/lib/auth/supabase-auth-client';
 import { useTheme } from 'next-themes';
 
 import {
@@ -22,6 +23,7 @@ import { useGetCredits } from '@/hooks/chat-sync-hooks';
 export function SidebarUserNav({ user }: { user: User }) {
   const { setTheme, theme } = useTheme();
   const { credits } = useGetCredits();
+  const { signOut } = useSupabaseAuth();
 
   return (
     <SidebarMenu>
@@ -62,9 +64,7 @@ export function SidebarUserNav({ user }: { user: User }) {
                 type="button"
                 className="w-full cursor-pointer"
                 onClick={() => {
-                  signOut({
-                    redirectTo: '/',
-                  });
+                  signOut();
                 }}
               >
                 Sign out

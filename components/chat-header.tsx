@@ -6,25 +6,23 @@ import { memo } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { ShareButton } from './share-button';
 import { Share, LogIn } from 'lucide-react';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/use-supabase-auth';
 import { useRouter } from 'next/navigation';
 import { SidebarUserNav } from './sidebar-user-nav';
-import type { User } from 'next-auth';
 
 function PureChatHeader({
   chatId,
   isReadonly,
   hasMessages,
-  user,
 }: {
   chatId: string;
   isReadonly: boolean;
   hasMessages: boolean;
-  user: User | undefined;
 }) {
   const router = useRouter();
   const { data: session } = useSession();
-  const isAuthenticated = !!session?.user;
+  console.log('session', session);
+  const user = session?.user;
 
   return (
     <header className="flex sticky top-0 bg-background py-1.5 items-center px-2 md:px-2 gap-2">
@@ -62,7 +60,7 @@ function PureChatHeader({
           </a>
         </Button>
 
-        {isAuthenticated && user ? (
+        {user ? (
           <SidebarUserNav user={user} />
         ) : (
           <Tooltip>

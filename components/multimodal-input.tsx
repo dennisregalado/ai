@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useDropzone } from 'react-dropzone';
 import { motion } from 'motion/react';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/use-supabase-auth';
 import {
   chatStore,
   useSetMessages,

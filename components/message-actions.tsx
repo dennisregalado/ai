@@ -7,7 +7,7 @@ import { Actions, Action } from '@/components/ai-elements/actions';
 import { toast } from 'sonner';
 import { useTRPC } from '@/trpc/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/use-supabase-auth';
 import { ChevronLeft, ChevronRight, Pencil, PencilOff } from 'lucide-react';
 import { useMessageTree } from '@/providers/message-tree-provider';
 import { RetryButton } from './retry-button';
