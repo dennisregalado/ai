@@ -235,3 +235,17 @@ BEGIN
   WHERE id = user_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to release reserved credits without consuming them
+CREATE OR REPLACE FUNCTION public.release_reserved_credits(
+  user_id UUID,
+  reserved_amount INTEGER
+)
+RETURNS VOID AS $$
+BEGIN
+  -- Just unreserve the credits without consuming them
+  UPDATE public.users
+  SET reserved_credits = reserved_credits - reserved_amount
+  WHERE id = user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

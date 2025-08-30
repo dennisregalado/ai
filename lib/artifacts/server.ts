@@ -2,7 +2,7 @@ import { codeDocumentHandler } from '@/lib/artifacts/code/server';
 import { sheetDocumentHandler } from '@/lib/artifacts/sheet/server';
 import { textDocumentHandler } from '@/lib/artifacts/text/server';
 import type { Document } from '../db/types';
-import { saveDocument } from '../db/supabase-queries';
+import { saveDocument } from '../db/queries';
 import type { User } from '@supabase/supabase-js';
 import type { ModelId } from '../ai/model-id';
 import type { StreamWriter } from '../ai/types';

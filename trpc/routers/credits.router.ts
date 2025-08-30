@@ -1,4 +1,4 @@
-import { getUserCreditsInfo } from '@/lib/repositories/supabase-credits';
+import { getUserCreditsInfo } from '@/lib/repositories/credits';
 import { createTRPCRouter, protectedProcedure } from '@/trpc/init';
 
 export const creditsRouter = createTRPCRouter({

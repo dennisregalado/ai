@@ -12,7 +12,7 @@ import {
   saveDocuments,
   updateChatIsPinnedById,
   deleteChatById,
-} from '@/lib/db/supabase-queries';
+} from '@/lib/db/queries';
 import {
   createTRPCRouter,
   protectedProcedure,
@@ -44,7 +44,9 @@ export const chatRouter = createTRPCRouter({
     chats.sort((a, b) => {
       if (a.is_pinned && !b.is_pinned) return -1;
       if (!a.is_pinned && b.is_pinned) return 1;
-      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      return (
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
     });
 
     return chats.map(dbChatToUIChat);

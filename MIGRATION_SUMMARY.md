@@ -164,6 +164,7 @@ export const createTRPCContext = cache(async () => {
 ### **Database Functions**
 - `reserve_credits()`: Atomically reserve user credits
 - `finalize_credit_usage()`: Finalize credit consumption
+- `release_reserved_credits()`: Release reserved credits without consuming them
 - `handle_new_user()`: Auto-create user profile on auth signup
 
 ## 🚀 **Setup Instructions**

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { User } from '@supabase/supabase-js';
 import { streamObject, tool } from 'ai';
-import { getDocumentById, saveSuggestions } from '@/lib/db/supabase-queries';
+import { getDocumentById, saveSuggestions } from '@/lib/db/queries';
 import type { Suggestion } from '@/lib/db/types';
 import { generateUUID } from '@/lib/utils';
 import { getLanguageModel } from '../providers';

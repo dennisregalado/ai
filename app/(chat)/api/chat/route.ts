@@ -15,7 +15,7 @@ import {
   saveMessage,
   updateMessage,
   getMessageById,
-} from '@/lib/db/supabase-queries';
+} from '@/lib/db/queries';
 import { generateUUID } from '@/lib/utils';
 import { generateTitleFromUserMessage } from '../../actions';
 import { getTools } from '@/lib/ai/tools/tools';

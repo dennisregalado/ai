@@ -1,5 +1,5 @@
 import { getUser } from '@/lib/auth/supabase-auth';
-import { getChatById, getAllMessagesByChatId } from '@/lib/db/supabase-queries';
+import { getChatById, getAllMessagesByChatId } from '@/lib/db/queries';
 import type { Chat } from '@/lib/db/types';
 import { ChatSDKError } from '@/lib/ai/errors';
 import type { ChatMessage } from '@/lib/ai/types';

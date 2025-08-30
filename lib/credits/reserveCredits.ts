@@ -1,5 +1,5 @@
 import { allTools } from '../ai/tools/tools-definitions';
-import { reserveAvailableCredits } from '@/lib/repositories/supabase-credits';
+import { reserveAvailableCredits } from '@/lib/repositories/credits';
 import { getMaxToolCost } from './credits-utils';
 
 export async function reserveCredits({

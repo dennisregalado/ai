@@ -46,7 +46,7 @@ export async function reserveAvailableCredits({
 > {
   try {
     const supabase = await createClient();
-    
+
     const userInfo = await getUserCreditsInfo({ userId });
     if (!userInfo) {
       return { success: false, error: 'User not found' };
@@ -63,7 +63,7 @@ export async function reserveAvailableCredits({
     const { data, error } = await supabase.rpc('reserve_credits', {
       user_id: userId,
       amount_to_reserve: amountToReserve,
-      required_available: amountToReserve
+      required_available: amountToReserve,
     });
 
     if (error) {
@@ -96,16 +96,42 @@ export async function finalizeCreditsUsage({
 }): Promise<void> {
   try {
     const supabase = await createClient();
-    
+
     // Use RPC to atomically finalize credit usage
     const { error } = await supabase.rpc('finalize_credit_usage', {
       user_id: userId,
       reserved_amount: reservedAmount,
-      actual_amount: actualAmount
+      actual_amount: actualAmount,
     });
 
     if (error) {
       console.error('Failed to finalize credits usage:', error);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Failed to finalize credits usage:', error);
+    throw error;
+  }
+}
+
+export async function releaseReservedCredits({
+  userId,
+  amount,
+}: {
+  userId: string;
+  amount: number;
+}): Promise<void> {
+  try {
+    const supabase = await createClient();
+
+    // Use RPC to atomically finalize credit usage
+    const { error } = await supabase.rpc('release_reserved_credits', {
+      user_id: userId,
+      reserved_amount: amount,
+    });
+
+    if (error) {
+      console.error('Failed to release reserved credits:', error);
       throw error;
     }
   } catch (error) {

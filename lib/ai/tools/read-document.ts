@@ -1,7 +1,7 @@
 import { tool } from 'ai';
 import type { User } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { getDocumentById } from '@/lib/db/supabase-queries';
+import { getDocumentById } from '@/lib/db/queries';
 import type { StreamWriter } from '../types';
 
 interface ReadDocumentProps {
