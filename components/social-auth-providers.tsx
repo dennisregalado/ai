@@ -1,16 +1,18 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { signIn } from 'next-auth/react';
+import { useSupabaseAuth } from '@/lib/auth/supabase-auth-client';
 import { GoogleLogo, GithubLogo } from '@phosphor-icons/react';
 
 export function SocialAuthProviders() {
+  const { signInWithGoogle, signInWithGithub } = useSupabaseAuth();
+
   return (
     <div className="space-y-2">
       <Button
         variant="outline"
         type="button"
-        onClick={(e) => signIn('google')}
+        onClick={signInWithGoogle}
         className="w-full"
       >
         <GoogleLogo className="mr-2 h-4 w-4" />
@@ -19,7 +21,7 @@ export function SocialAuthProviders() {
       <Button
         variant="outline"
         type="button"
-        onClick={(e) => signIn('github')}
+        onClick={signInWithGithub}
         className="w-full"
       >
         <GithubLogo className="mr-2 h-4 w-4" />

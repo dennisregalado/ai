@@ -4,7 +4,7 @@
 // They use local storage functions from '@/lib/utils/anonymous-chat-storage' for anonymous users
 // They use tRPC mutations for authenticated users
 
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/use-supabase-auth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useCallback, useMemo } from 'react';
@@ -16,7 +16,7 @@ import {
 } from '@/lib/message-conversion';
 import { useChatId } from '@/providers/chat-id-provider';
 import type { UIChat } from '@/lib/types/uiChat';
-import type { Document } from '@/lib/db/schema';
+import type { Document } from '@/lib/db/types';
 import {
   loadLocalAnonymousMessagesByChatId,
   saveAnonymousMessage,

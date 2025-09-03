@@ -2,7 +2,7 @@ import { loadConfigFromEnv, type DeepResearchConfig } from './configuration';
 import { runDeepResearcher } from './deep-researcher';
 import { tool, type ModelMessage } from 'ai';
 import { z } from 'zod';
-import type { Session } from 'next-auth';
+import type { Session } from '@supabase/supabase-js';
 import type { StreamWriter } from '../../types';
 import { generateUUID } from '@/lib/utils';
 import { Langfuse } from 'langfuse';

@@ -6,7 +6,7 @@ import { Artifact } from './artifact';
 import { MessagesPane } from './messages-pane';
 import { useArtifactSelector } from '@/hooks/use-artifact';
 import { useTRPC } from '@/trpc/react';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/use-supabase-auth';
 
 import { useSidebar } from '@/components/ui/sidebar';
 import type { ChatMessage } from '@/lib/ai/types';

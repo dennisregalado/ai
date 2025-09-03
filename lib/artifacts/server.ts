@@ -1,9 +1,9 @@
 import { codeDocumentHandler } from '@/lib/artifacts/code/server';
 import { sheetDocumentHandler } from '@/lib/artifacts/sheet/server';
 import { textDocumentHandler } from '@/lib/artifacts/text/server';
-import type { Document } from '../db/schema';
+import type { Document } from '../db/types';
 import { saveDocument } from '../db/queries';
-import type { Session } from 'next-auth';
+import type { User } from '@supabase/supabase-js';
 import type { ModelId } from '../ai/model-id';
 import type { StreamWriter } from '../ai/types';
 import type { ArtifactKind } from './artifact-kind';
@@ -20,7 +20,7 @@ export interface CreateDocumentCallbackProps {
   id: string;
   title: string;
   dataStream: StreamWriter;
-  session: Session;
+  user: User;
   description: string;
   prompt: string;
   messageId: string;
@@ -31,7 +31,7 @@ export interface UpdateDocumentCallbackProps {
   document: Document;
   description: string;
   dataStream: StreamWriter;
-  session: Session;
+  user: User;
   messageId: string;
   selectedModel: ModelId;
 }
@@ -58,7 +58,7 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
           title: args.title,
           content: draftContent,
           kind: config.kind,
-          userId: args.session.user.id,
+          userId: args.user.id,
           messageId: args.messageId,
         });
       }
@@ -74,7 +74,7 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
           title: args.document.title,
           content: draftContent,
           kind: config.kind,
-          userId: args.session.user.id,
+          userId: args.user.id,
           messageId: args.messageId,
         });
       }

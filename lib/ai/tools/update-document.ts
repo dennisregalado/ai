@@ -1,5 +1,5 @@
 import { tool } from 'ai';
-import type { Session } from 'next-auth';
+import type { Session } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { getDocumentById } from '@/lib/db/queries';
 import { documentHandlersByArtifactKind } from '@/lib/artifacts/server';

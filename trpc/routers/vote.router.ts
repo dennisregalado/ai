@@ -13,7 +13,7 @@ export const voteRouter = createTRPCRouter({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Chat not found' });
       }
 
-      if (chat.userId !== ctx.user.id) {
+      if (chat.user_id !== ctx.user.id) {
         throw new TRPCError({ code: 'UNAUTHORIZED' });
       }
 
@@ -35,7 +35,7 @@ export const voteRouter = createTRPCRouter({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Chat not found' });
       }
 
-      if (chat.userId !== ctx.user.id) {
+      if (chat.user_id !== ctx.user.id) {
         throw new TRPCError({ code: 'UNAUTHORIZED' });
       }
 

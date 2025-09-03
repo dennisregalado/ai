@@ -6,7 +6,8 @@
  * TL;DR - This is where all the tRPC server stuff is created and plugged in. The pieces you will
  * need to use are documented accordingly near the end.
  */
-import { auth } from "@/app/(auth)/auth";
+import { createClient } from '@/lib/supabase/server';
+import { getUser } from '@/lib/auth/supabase-auth';
 
 import { TRPCError, initTRPC } from "@trpc/server";
 import superjson from "superjson";
@@ -26,9 +27,17 @@ import { cache } from 'react';
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = cache(async () => {
-  const session = await auth();
+  const user = await getUser();
+  const supabase = await createClient();
+  
   return {
-    user: session?.user,
+    user: user ? {
+      id: user.id,
+      email: user.email,
+      name: user.user_metadata?.name || user.user_metadata?.full_name,
+      image: user.user_metadata?.avatar_url,
+    } : null,
+    supabase,
   };
 });
 

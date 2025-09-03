@@ -1,7 +1,7 @@
 import type { AnonymousChat, AnonymousMessage } from '@/lib/types/anonymous';
 import { getAnonymousSession } from '@/lib/anonymous-session-client';
 import { cloneMessagesWithDocuments } from '../clone-messages';
-import type { Document } from '../db/schema';
+import type { Document } from '../db/types';
 
 const ANONYMOUS_CHATS_KEY = 'anonymous-chats';
 const ANONYMOUS_MESSAGES_KEY = 'anonymous-messages';

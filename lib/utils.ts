@@ -2,7 +2,7 @@ import type { FileUIPart, ModelMessage, TextPart } from 'ai';
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-import type { Document } from '@/lib/db/schema';
+import type { Document } from '@/lib/db/types';
 import type { Attachment, ChatMessage } from './ai/types';
 import { ChatSDKError, type ErrorCode } from './ai/errors';
 

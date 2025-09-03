@@ -9,7 +9,7 @@ import {
 import { DecoratorNode, $getRoot } from 'lexical';
 
 import { Suggestion as PreviewSuggestion } from '@/components/suggestion';
-import type { Suggestion } from '@/lib/db/schema';
+import type { Suggestion } from '@/lib/db/types';
 import type { ArtifactKind } from '@/lib/artifacts/artifact-kind';
 import type { LexicalEditor } from 'lexical';
 

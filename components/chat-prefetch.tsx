@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import type { User } from 'next-auth';
+import type { User } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/react';
 import { useGetAllChats } from '@/hooks/chat-sync-hooks';

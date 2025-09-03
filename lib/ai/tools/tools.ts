@@ -7,7 +7,7 @@ import { retrieve } from '@/lib/ai/tools/retrieve';
 import { tavilyWebSearch } from '@/lib/ai/tools/web-search';
 import { stockChart } from '@/lib/ai/tools/stock-chart';
 import { codeInterpreter } from '@/lib/ai/tools/code-interpreter';
-import type { Session } from 'next-auth';
+import type { Session } from '@supabase/supabase-js';
 import { readDocument } from '@/lib/ai/tools/read-document';
 import { generateImage } from '@/lib/ai/tools/generate-image';
 import type { ModelId } from '@/lib/ai/model-id';

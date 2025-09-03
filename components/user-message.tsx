@@ -1,6 +1,6 @@
 'use client';
 import { memo, useState } from 'react';
-import type { Vote } from '@/lib/db/schema';
+import type { Vote } from '@/lib/db/types';
 import { MessageActions } from './message-actions';
 import equal from 'fast-deep-equal';
 import { cn, getAttachmentsFromMessage } from '@/lib/utils';

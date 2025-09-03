@@ -1,10 +1,10 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import { artifactDefinitions } from './artifact';
-import type { Suggestion } from '@/lib/db/schema';
+import type { Suggestion } from '@/lib/db/types';
 import { useArtifact } from '@/hooks/use-artifact';
 import { useSaveDocument } from '@/hooks/chat-sync-hooks';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/use-supabase-auth';
 import { useDataStream } from './data-stream-provider';
 import { useChatInput } from '@/providers/chat-input-provider';
 

@@ -9,7 +9,7 @@ import {
   type ComponentProps,
   useCallback,
 } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/use-supabase-auth';
 import { Button } from '@/components/ui/button';
 import {
   Command,

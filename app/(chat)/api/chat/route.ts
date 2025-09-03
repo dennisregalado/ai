@@ -6,12 +6,15 @@ import {
   stepCountIs,
 } from 'ai';
 import { replaceFilePartUrlByBinaryDataInMessages } from '@/lib/utils/download-assets';
-import { auth } from '@/app/(auth)/auth';
+import { getUser } from '@/lib/auth/supabase-auth';
+import {
+  getOrCreateAnonymousUser,
+  isAnonymousUser,
+} from '@/lib/auth/anonymous-auth';
 import { systemPrompt } from '@/lib/ai/prompts';
 import {
   getChatById,
   saveChat,
-  getUserById,
   saveMessage,
   updateMessage,
   getMessageById,
@@ -35,13 +38,6 @@ import {
 } from 'resumable-stream';
 
 import { after } from 'next/server';
-import {
-  getAnonymousSession,
-  createAnonymousSession,
-  setAnonymousSession,
-} from '@/lib/anonymous-session-server';
-import type { AnonymousSession } from '@/lib/types/anonymous';
-import { ANONYMOUS_LIMITS } from '@/lib/types/anonymous';
 import { markdownJoinerTransform } from '@/lib/ai/markdown-joiner-transform';
 import { checkAnonymousRateLimit, getClientIP } from '@/lib/utils/rate-limit';
 import type { ModelId } from '@/lib/ai/model-id';
@@ -54,6 +50,14 @@ import { getCreditReservation } from './getCreditReservation';
 import { filterReasoningParts } from './filterReasoningParts';
 import { getThreadUpToMessageId } from './getThreadUpToMessageId';
 import { createModuleLogger } from '@/lib/logger';
+import { chatMessageToDbMessage } from '@/lib/message-conversion';
+
+// Anonymous user limits
+const ANONYMOUS_LIMITS = {
+  CREDITS: 10,
+  AVAILABLE_MODELS: ['claude-3-haiku', 'gpt-4o-mini'],
+  AVAILABLE_TOOLS: ['webSearch'] as ToolName[],
+} as const;
 
 // Create shared Redis clients for resumable stream and cleanup
 let redisPublisher: any = null;
@@ -107,6 +111,7 @@ export function getRedisPublisher() {
 
 export async function POST(request: NextRequest) {
   const log = createModuleLogger('api:chat');
+
   try {
     const {
       id: chatId,
@@ -133,23 +138,23 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const session = await auth();
-
-    const userId = session?.user?.id || null;
-    const isAnonymous = userId === null;
-    let anonymousSession: AnonymousSession | null = null;
-
-    // Check for anonymous users
-
-    if (userId) {
-      // TODO: Consider if checking if user exists is really needed
-      const user = await getUserById({ userId });
+    // Get or create user (regular or anonymous)
+    let user = await getUser();
+    if (!user) {
+      // Create anonymous user if no authenticated user
+      user = await getOrCreateAnonymousUser();
       if (!user) {
-        log.warn('User not found');
-        return new Response('User not found', { status: 404 });
+        return new Response('Failed to create user session', { status: 500 });
       }
-    } else {
-      // Apply rate limiting for anonymous users
+    }
+
+    const userId = user.id;
+    const isAnonymous = isAnonymousUser(user);
+
+    log.debug({ userId, isAnonymous }, 'User session');
+
+    // Apply rate limiting for anonymous users
+    if (isAnonymous) {
       const clientIP = getClientIP(request);
       const rateLimitResult = await checkAnonymousRateLimit(
         clientIP,
@@ -173,32 +178,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      anonymousSession = await getAnonymousSession();
-      if (!anonymousSession) {
-        anonymousSession = await createAnonymousSession();
-      }
-
-      // Check message limits
-      if (anonymousSession.remainingCredits <= 0) {
-        log.info('Anonymous message limit reached');
-        return new Response(
-          JSON.stringify({
-            error: `You've used all ${ANONYMOUS_LIMITS.CREDITS} free messages. Sign up to continue chatting with unlimited access!`,
-            type: 'ANONYMOUS_LIMIT_EXCEEDED',
-            maxMessages: ANONYMOUS_LIMITS.CREDITS,
-            suggestion:
-              'Create an account to get unlimited messages and access to more AI models',
-          }),
-          {
-            status: 402,
-            headers: {
-              'Content-Type': 'application/json',
-              ...(rateLimitResult.headers || {}),
-            },
-          },
-        );
-      }
-
       // Validate model for anonymous users
       if (!ANONYMOUS_LIMITS.AVAILABLE_MODELS.includes(selectedModelId as any)) {
         log.warn('Model not available for anonymous users');
@@ -209,10 +188,7 @@ export async function POST(request: NextRequest) {
           }),
           {
             status: 403,
-            headers: {
-              'Content-Type': 'application/json',
-              ...(rateLimitResult.headers || {}),
-            },
+            headers: { 'Content-Type': 'application/json' },
           },
         );
       }
@@ -221,6 +197,7 @@ export async function POST(request: NextRequest) {
     // Extract selectedTool from user message metadata
     const selectedTool = userMessage.metadata.selectedTool || null;
     log.debug({ selectedTool }, 'selectedTool');
+
     let modelDefinition: ModelDefinition;
     try {
       modelDefinition = getModelDefinition(selectedModelId);
@@ -228,11 +205,12 @@ export async function POST(request: NextRequest) {
       log.warn('Model not found');
       return new Response('Model not found', { status: 404 });
     }
-    // Skip database operations for anonymous users
+
+    // Handle chat creation/validation for authenticated users
     if (!isAnonymous) {
       const chat = await getChatById({ id: chatId });
 
-      if (chat && chat.userId !== userId) {
+      if (chat && chat.user_id !== userId) {
         log.warn('Unauthorized - chat ownership mismatch');
         return new Response('Unauthorized', { status: 401 });
       }
@@ -243,44 +221,26 @@ export async function POST(request: NextRequest) {
         });
 
         await saveChat({ id: chatId, userId, title });
-      } else {
-        if (chat.userId !== userId) {
-          log.warn('Unauthorized - chat ownership mismatch');
-          return new Response('Unauthorized', { status: 401 });
-        }
       }
 
-      const [exsistentMessage] = await getMessageById({ id: userMessage.id });
+      const [existentMessage] = await getMessageById({ id: userMessage.id });
 
-      if (exsistentMessage && exsistentMessage.chatId !== chatId) {
+      if (existentMessage && existentMessage.chat_id !== chatId) {
         log.warn('Unauthorized - message chatId mismatch');
         return new Response('Unauthorized', { status: 401 });
       }
 
-      if (!exsistentMessage) {
-        // If the message does not exist, save it
-        await saveMessage({
-          _message: {
-            id: userMessage.id,
-            chatId: chatId,
-            role: userMessage.role,
-            parts: userMessage.parts,
-            attachments: [],
-            createdAt: new Date(),
-            annotations: [],
-            isPartial: false,
-            parentMessageId: userMessage.metadata?.parentMessageId || null,
-            selectedModel: selectedModelId,
-            selectedTool: selectedTool,
-          },
-        });
+      if (!existentMessage) {
+        // Convert UI ChatMessage to DBMessage (snake_case) before saving
+        const dbMessage = chatMessageToDbMessage(userMessage, chatId);
+        await saveMessage({ _message: dbMessage });
       }
     }
 
+    // Handle tool selection
     let explicitlyRequestedTools: ToolName[] | null = null;
     if (selectedTool === 'deepResearch')
       explicitlyRequestedTools = ['deepResearch'];
-    // else if (selectedTool === 'reason') explicitlyRequestedTool = 'reasonSearch';
     else if (selectedTool === 'webSearch')
       explicitlyRequestedTools = ['webSearch'];
     else if (selectedTool === 'generateImage')
@@ -293,24 +253,17 @@ export async function POST(request: NextRequest) {
     let reservation: CreditReservation | null = null;
 
     if (!isAnonymous) {
+      // Handle credits for regular users
       const { reservation: res, error: creditError } =
         await getCreditReservation(userId, baseModelCost);
 
       if (creditError) {
-        console.log(
-          'RESPONSE > POST /api/chat: Credit reservation error:',
-          creditError,
+        return new Response(
+          JSON.stringify({ error: creditError, type: 'INSUFFICIENT_CREDITS' }),
+          { status: 402, headers: { 'Content-Type': 'application/json' } },
         );
-        return new Response(creditError, {
-          status: 402,
-        });
       }
-
       reservation = res;
-    } else if (anonymousSession) {
-      // Increment message count and update session
-      anonymousSession.remainingCredits -= baseModelCost;
-      await setAnonymousSession(anonymousSession);
     }
 
     let activeTools: ToolName[] = filterAffordableTools(
@@ -319,7 +272,7 @@ export async function POST(request: NextRequest) {
         ? ANONYMOUS_LIMITS.CREDITS
         : reservation
           ? reservation.budget - baseModelCost
-          : 0,
+          : 1000,
     );
 
     // Disable all tools for models with unspecified features
@@ -350,22 +303,16 @@ export async function POST(request: NextRequest) {
       );
       return new Response(
         `Insufficient budget for requested tool: ${explicitlyRequestedTools}.`,
-        {
-          status: 402,
-        },
+        { status: 402 },
       );
     } else if (
       explicitlyRequestedTools &&
       explicitlyRequestedTools.length > 0
     ) {
-      log.debug(
-        { explicitlyRequestedTools },
-        'Setting explicitly requested tools',
-      );
       activeTools = explicitlyRequestedTools;
     }
 
-    // Validate input token limit (50k tokens for user message)
+    // Validate input token limit
     const totalTokens = calculateMessagesTokens(
       convertToModelMessages([userMessage]),
     );
@@ -379,8 +326,9 @@ export async function POST(request: NextRequest) {
       return error.toResponse();
     }
 
+    // Get message thread
     const messageThreadToParent = isAnonymous
-      ? anonymousPreviousMessages
+      ? anonymousPreviousMessages || []
       : await getThreadUpToMessageId(
           chatId,
           userMessage.metadata.parentMessageId,
@@ -399,7 +347,6 @@ export async function POST(request: NextRequest) {
     // Filter out reasoning parts to ensure compatibility between different models
     const messagesWithoutReasoning = filterReasoningParts(messages.slice(-5));
 
-    // TODO: Do something smarter by truncating the context to a numer of tokens (maybe even based on setting)
     const modelMessages = convertToModelMessages(messagesWithoutReasoning);
 
     // TODO: remove this when the gateway provider supports URLs
@@ -437,21 +384,20 @@ export async function POST(request: NextRequest) {
 
       if (!isAnonymous) {
         // Save placeholder assistant message immediately (needed for document creation)
-        await saveMessage({
-          _message: {
-            id: messageId,
-            chatId: chatId,
-            role: 'assistant',
-            parts: [], // Empty placeholder
-            attachments: [],
-            createdAt: new Date(),
-            annotations: [],
-            isPartial: true,
-            parentMessageId: userMessage.id,
-            selectedModel: selectedModelId,
-            selectedTool: null,
-          },
-        });
+        const dbMessage = {
+          id: messageId,
+          chat_id: chatId,
+          role: 'assistant' as const,
+          parts: [], // Empty placeholder
+          attachments: [],
+          created_at: new Date().toISOString(),
+          annotations: [],
+          is_partial: true,
+          parent_message_id: userMessage.id,
+          selected_model: selectedModelId,
+          selected_tool: null,
+        };
+        await saveMessage({ _message: dbMessage });
       }
 
       // Build the data stream that will emit tokens
@@ -486,11 +432,9 @@ export async function POST(request: NextRequest) {
             tools: getTools({
               dataStream,
               session: {
-                user: {
-                  id: userId || undefined,
-                },
+                user: userId ? { id: userId } : null,
                 expires: 'noop',
-              },
+              } as any,
               contextForLLM: contextForLLM,
               messageId,
               selectedModel: selectedModelId,
@@ -546,7 +490,7 @@ export async function POST(request: NextRequest) {
           // Clear timeout since we finished successfully
           clearTimeout(timeoutId);
 
-          if (userId) {
+          if (!isAnonymous) {
             const actualCost =
               baseModelCost +
               messages
@@ -567,33 +511,24 @@ export async function POST(request: NextRequest) {
 
                   return acc + toolDef.cost;
                 }, 0);
-            const assistantMessage = responseMessage; // TODO: Fix this in ai sdk v5 - responseMessage is not a UIMessage
+
             try {
-              // TODO: Validate if this is correct ai sdk v5
               const assistantMessage = messages.at(-1);
 
               if (!assistantMessage) {
                 throw new Error('No assistant message found!');
               }
 
-              if (!isAnonymous) {
-                await updateMessage({
-                  _message: {
-                    id: assistantMessage.id,
-                    chatId: chatId,
-                    role: assistantMessage.role ?? '',
-                    parts: assistantMessage.parts ?? [],
+              // Convert UI ChatMessage to DBMessage before saving
+              const dbMessage = chatMessageToDbMessage(
+                assistantMessage,
+                chatId,
+              );
+              dbMessage.is_partial = false;
+              dbMessage.parent_message_id = userMessage.id;
+              dbMessage.selected_model = selectedModelId;
 
-                    attachments: [],
-                    createdAt: new Date(),
-                    annotations: [],
-                    isPartial: false,
-                    parentMessageId: userMessage.id,
-                    selectedModel: selectedModelId,
-                    selectedTool: null,
-                  },
-                });
-              }
+              await updateMessage({ _message: dbMessage });
 
               // Finalize credit usage: deduct actual cost, release reservation
               if (reservation) {
@@ -616,10 +551,6 @@ export async function POST(request: NextRequest) {
           // Release reserved credits on error (fire and forget)
           if (reservation) {
             reservation.cleanup();
-          }
-          if (anonymousSession) {
-            anonymousSession.remainingCredits += baseModelCost;
-            setAnonymousSession(anonymousSession);
           }
           return 'Oops, an error occured!';
         },
@@ -675,18 +606,12 @@ export async function POST(request: NextRequest) {
       if (reservation) {
         await reservation.cleanup();
       }
-      if (anonymousSession) {
-        anonymousSession.remainingCredits += baseModelCost;
-        setAnonymousSession(anonymousSession);
-      }
       throw error;
     }
   } catch (error) {
     log.error({ error }, 'RESPONSE > POST /api/chat error');
     return new Response('An error occurred while processing your request!', {
-      status: 404,
+      status: 500,
     });
   }
 }
-
-// DELETE moved to tRPC chat.deleteChat mutation

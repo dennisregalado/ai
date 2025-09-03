@@ -5,7 +5,7 @@ import React, {
   createElement,
 } from 'react';
 import { Settings2, X } from 'lucide-react';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/use-supabase-auth';
 import { Button } from './ui/button';
 import {
   DropdownMenu,

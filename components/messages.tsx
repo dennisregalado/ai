@@ -1,6 +1,6 @@
 import { PreviewMessage } from './message';
 import { memo } from 'react';
-import type { Vote } from '@/lib/db/schema';
+import type { Vote } from '@/lib/db/types';
 import { ResponseErrorMessage } from './response-error-message';
 import { ThinkingMessage } from './thinking-message';
 import { Greeting } from './greeting';

@@ -1,10 +1,10 @@
-import { auth } from '@/app/(auth)/auth';
+import { getUser } from '@/lib/auth/supabase-auth';
 import { getChatById, getAllMessagesByChatId } from '@/lib/db/queries';
-import type { Chat } from '@/lib/db/schema';
+import type { Chat } from '@/lib/db/types';
 import { ChatSDKError } from '@/lib/ai/errors';
 import type { ChatMessage } from '@/lib/ai/types';
 import { createUIMessageStream, JsonToSseTransformStream } from 'ai';
-import { getRedisPublisher, getStreamContext } from '../../route';
+import { getRedisPublisher, getStreamContext } from '../../route-working';
 import { differenceInSeconds } from 'date-fns';
 
 export async function GET(
@@ -24,8 +24,8 @@ export async function GET(
     return new ChatSDKError('bad_request:api').toResponse();
   }
 
-  const session = await auth();
-  const userId = session?.user?.id || null;
+  const user = await getUser();
+  const userId = user?.id || null;
   const isAuthenticated = userId !== null;
 
   let chat: Chat;
@@ -40,7 +40,7 @@ export async function GET(
 
     // If chat is not public, require authentication and ownership
     if (chat.visibility !== 'public') {
-      if (chat.userId !== userId) {
+      if (chat.user_id !== userId) {
         console.log(
           'RESPONSE > GET /api/chat: Unauthorized - chat ownership mismatch',
         );

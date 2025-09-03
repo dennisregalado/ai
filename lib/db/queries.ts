@@ -1,27 +1,24 @@
 import 'server-only';
-import { and, asc, desc, eq, gt, gte, inArray } from 'drizzle-orm';
+import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { del } from '@vercel/blob';
-
-import {
-  user,
-  chat,
-  type User,
-  document,
-  type Suggestion,
-  suggestion,
-  message,
-  vote,
-  type DBMessage,
-} from './schema';
+import type { User, Suggestion, DBMessage } from './types';
 import type { ArtifactKind } from '../artifacts/artifact-kind';
 import type { Attachment } from '@/lib/ai/types';
-import { db } from './client';
 
-export async function getUserByEmail(email: string): Promise<Array<User>> {
+// User operations
+export async function getUserByEmail(email: string): Promise<User[]> {
   try {
-    return await db.select().from(user).where(eq(user.email, email));
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email);
+
+    if (error) throw error;
+    return data || [];
   } catch (error) {
-    console.error('Failed to get user from database');
+    console.error('Failed to get user from database', error);
     throw error;
   }
 }
@@ -36,17 +33,48 @@ export async function createUser({
   image: string | null;
 }) {
   try {
-    return await db.insert(user).values({
-      email,
-      name,
-      image,
-    });
+    const supabase = await createServiceClient();
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        email,
+        name,
+        image,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   } catch (error) {
-    console.error('Failed to create user in database');
+    console.error('Failed to create user in database', error);
     throw error;
   }
 }
 
+export async function getUserById({
+  userId,
+}: { userId: string }): Promise<User | undefined> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return undefined; // No rows returned
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    console.error('Failed to get user by id from database', error);
+    throw error;
+  }
+}
+
+// Chat operations
 export async function saveChat({
   id,
   userId,
@@ -57,56 +85,81 @@ export async function saveChat({
   title: string;
 }) {
   try {
-    return await db.insert(chat).values({
-      id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      userId,
-      title,
-    });
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('chats')
+      .insert({
+        id,
+        user_id: userId,
+        title,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   } catch (error) {
-    console.error('Failed to save chat in database');
+    console.error('Failed to save chat in database', error);
     throw error;
   }
 }
 
 export async function deleteChatById({ id }: { id: string }) {
   try {
+    const supabase = await createClient();
+
     // Get all messages for this chat to clean up their attachments
-    const messagesToDelete = await db
-      .select()
-      .from(message)
-      .where(eq(message.chatId, id));
+    const { data: messagesToDelete } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('chat_id', id);
 
     // Clean up attachments before deleting the chat (which will cascade delete messages)
-    if (messagesToDelete.length > 0) {
+    if (messagesToDelete && messagesToDelete.length > 0) {
       await deleteAttachmentsFromMessages(messagesToDelete);
     }
 
-    return await db.delete(chat).where(eq(chat.id, id));
+    const { error } = await supabase.from('chats').delete().eq('id', id);
+
+    if (error) throw error;
+    return { success: true };
   } catch (error) {
-    console.error('Failed to delete chat by id from database');
+    console.error('Failed to delete chat by id from database', error);
     throw error;
   }
 }
 
 export async function getChatsByUserId({ id }: { id: string }) {
   try {
-    return await db
-      .select()
-      .from(chat)
-      .where(eq(chat.userId, id))
-      .orderBy(desc(chat.updatedAt));
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('chats')
+      .select('*')
+      .eq('user_id', id)
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
   } catch (error) {
-    console.error('Failed to get chats by user from database');
+    console.error('Failed to get chats by user from database', error);
     throw error;
   }
 }
 
 export async function tryGetChatById({ id }: { id: string }) {
   try {
-    const [selectedChat] = await db.select().from(chat).where(eq(chat.id, id));
-    return selectedChat;
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('chats')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // No rows returned
+      throw error;
+    }
+    return data;
   } catch (error) {
     return null;
   }
@@ -114,33 +167,159 @@ export async function tryGetChatById({ id }: { id: string }) {
 
 export async function getChatById({ id }: { id: string }) {
   try {
-    const [selectedChat] = await db.select().from(chat).where(eq(chat.id, id));
-    return selectedChat;
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('chats')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      // Return null if chat doesn't exist (PGRST116 error)
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      throw error;
+    }
+    return data;
   } catch (error) {
-    console.error('Failed to get chat by id from database');
+    console.error('Failed to get chat by id from database', error);
     throw error;
   }
 }
 
+export async function updateChatVisiblityById({
+  chatId,
+  visibility,
+}: {
+  chatId: string;
+  visibility: 'private' | 'public';
+}) {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('chats')
+      .update({ visibility })
+      .eq('id', chatId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Failed to update chat visibility in database', error);
+    throw error;
+  }
+}
+
+export async function updateChatTitleById({
+  chatId,
+  title,
+}: {
+  chatId: string;
+  title: string;
+}) {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('chats')
+      .update({ title })
+      .eq('id', chatId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Failed to update chat title by id from database', error);
+    throw error;
+  }
+}
+
+export async function updateChatIsPinnedById({
+  chatId,
+  isPinned,
+}: {
+  chatId: string;
+  isPinned: boolean;
+}) {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('chats')
+      .update({ is_pinned: isPinned })
+      .eq('id', chatId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Failed to update chat isPinned by id from database', error);
+    throw error;
+  }
+}
+
+export async function updateChatUpdatedAt({
+  chatId,
+}: {
+  chatId: string;
+}) {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('chats')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', chatId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Failed to update chat updatedAt by id from database', error);
+    throw error;
+  }
+}
+
+// Message operations
 export async function saveMessage({
   _message,
 }: {
   _message: DBMessage;
 }) {
   try {
-    const result = await db.insert(message).values(_message);
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        id: _message.id,
+        chat_id: _message.chat_id,
+        parent_message_id: _message.parent_message_id,
+        role: _message.role,
+        parts: _message.parts,
+        attachments: _message.attachments,
+        created_at: _message.created_at,
+        annotations: _message.annotations,
+        is_partial: _message.is_partial,
+        selected_model: _message.selected_model,
+        selected_tool: _message.selected_tool,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
 
     // Update chat's updatedAt timestamp
-    await updateChatUpdatedAt({ chatId: _message.chatId });
+    await updateChatUpdatedAt({ chatId: _message.chat_id });
 
-    return result;
+    return data;
   } catch (error) {
     console.error('Failed to save message in database', error);
     throw error;
   }
 }
 
-// TODO: This should indicate the it's only updating messages for a single chat
 export async function saveMessages({
   _messages,
 }: {
@@ -150,15 +329,36 @@ export async function saveMessages({
     if (_messages.length === 0) {
       return;
     }
-    const result = await db.insert(message).values(_messages);
+
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('messages')
+      .insert(
+        _messages.map((msg) => ({
+          id: msg.id,
+          chat_id: msg.chat_id,
+          parent_message_id: msg.parent_message_id,
+          role: msg.role,
+          parts: msg.parts,
+          attachments: msg.attachments,
+          created_at: msg.created_at,
+          annotations: msg.annotations,
+          is_partial: msg.is_partial,
+          selected_model: msg.selected_model,
+          selected_tool: msg.selected_tool,
+        })),
+      )
+      .select();
+
+    if (error) throw error;
 
     // Update chat's updatedAt timestamp for all affected chats
-    const uniqueChatIds = [...new Set(_messages.map((msg) => msg.chatId))];
+    const uniqueChatIds = [...new Set(_messages.map((msg) => msg.chat_id))];
     await Promise.all(
       uniqueChatIds.map((chatId) => updateChatUpdatedAt({ chatId })),
     );
 
-    return result;
+    return data;
   } catch (error) {
     console.error('Failed to save messages in database', error);
     throw error;
@@ -171,17 +371,23 @@ export async function updateMessage({
   _message: DBMessage;
 }) {
   try {
-    return await db
-      .update(message)
-      .set({
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('messages')
+      .update({
         parts: _message.parts,
         annotations: _message.annotations,
         attachments: _message.attachments,
-        createdAt: _message.createdAt,
-        isPartial: _message.isPartial,
-        parentMessageId: _message.parentMessageId,
+        created_at: _message.created_at,
+        is_partial: _message.is_partial,
+        parent_message_id: _message.parent_message_id,
       })
-      .where(eq(message.id, _message.id));
+      .eq('id', _message.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   } catch (error) {
     console.error('Failed to update message in database', error);
     throw error;
@@ -190,17 +396,149 @@ export async function updateMessage({
 
 export async function getAllMessagesByChatId({ chatId }: { chatId: string }) {
   try {
-    return await db
-      .select()
-      .from(message)
-      .where(eq(message.chatId, chatId))
-      .orderBy(asc(message.createdAt));
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
   } catch (error) {
     console.error('Failed to get all messages by chat ID', error);
     throw error;
   }
 }
 
+export async function getMessageById({ id }: { id: string }) {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('id', id);
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Failed to get message by id from database', error);
+    throw error;
+  }
+}
+
+export async function deleteMessagesByChatIdAfterTimestamp({
+  chatId,
+  timestamp,
+}: {
+  chatId: string;
+  timestamp: Date;
+}) {
+  try {
+    const supabase = await createClient();
+
+    const { data: messagesToDelete } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('chat_id', chatId)
+      .gte('created_at', timestamp.toISOString());
+
+    if (messagesToDelete && messagesToDelete.length > 0) {
+      const messageIds = messagesToDelete.map((message) => message.id);
+
+      // Clean up attachments before deleting messages
+      await deleteAttachmentsFromMessages(messagesToDelete);
+
+      // Delete votes first
+      await supabase
+        .from('votes')
+        .delete()
+        .eq('chat_id', chatId)
+        .in('message_id', messageIds);
+
+      // Delete messages
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('chat_id', chatId)
+        .in('id', messageIds);
+
+      if (error) throw error;
+    }
+  } catch (error) {
+    console.error(
+      'Failed to delete messages by id after timestamp from database',
+      error,
+    );
+    throw error;
+  }
+}
+
+export async function deleteMessagesByChatIdAfterMessageId({
+  chatId,
+  messageId,
+}: {
+  chatId: string;
+  messageId: string;
+}) {
+  try {
+    const supabase = await createClient();
+
+    // First, get the target message to find its position in the chat
+    const { data: targetMessage } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('id', messageId)
+      .eq('chat_id', chatId)
+      .single();
+
+    if (!targetMessage) {
+      throw new Error('Target message not found');
+    }
+
+    // Get all messages in the chat ordered by creation time
+    const { data: allMessages } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: true });
+
+    if (!allMessages) return;
+
+    // Find the index of the target message
+    const targetIndex = allMessages.findIndex((msg) => msg.id === messageId);
+
+    if (targetIndex === -1) {
+      throw new Error('Target message not found in chat');
+    }
+
+    // Delete all messages after the target message (including the target itself)
+    const messagesToDelete = allMessages.slice(targetIndex);
+    const messageIdsToDelete = messagesToDelete.map((msg) => msg.id);
+
+    if (messageIdsToDelete.length > 0) {
+      // Clean up attachments before deleting messages
+      await deleteAttachmentsFromMessages(messagesToDelete);
+
+      // Delete the messages (votes will be deleted automatically via CASCADE)
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('chat_id', chatId)
+        .in('id', messageIdsToDelete);
+
+      if (error) throw error;
+    }
+  } catch (error) {
+    console.error(
+      'Failed to delete messages by chat id after message id from database',
+      error,
+    );
+    throw error;
+  }
+}
+
+// Vote operations
 export async function voteMessage({
   chatId,
   messageId,
@@ -211,37 +549,66 @@ export async function voteMessage({
   type: 'up' | 'down';
 }) {
   try {
-    const [existingVote] = await db
-      .select()
-      .from(vote)
-      .where(and(eq(vote.messageId, messageId), eq(vote.chatId, chatId)));
+    const supabase = await createClient();
+
+    // Check if vote exists
+    const { data: existingVote } = await supabase
+      .from('votes')
+      .select('*')
+      .eq('message_id', messageId)
+      .eq('chat_id', chatId)
+      .single();
 
     if (existingVote) {
-      return await db
-        .update(vote)
-        .set({ isUpvoted: type === 'up' })
-        .where(and(eq(vote.messageId, messageId), eq(vote.chatId, chatId)));
+      // Update existing vote
+      const { data, error } = await supabase
+        .from('votes')
+        .update({ is_upvoted: type === 'up' })
+        .eq('message_id', messageId)
+        .eq('chat_id', chatId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } else {
+      // Create new vote
+      const { data, error } = await supabase
+        .from('votes')
+        .insert({
+          chat_id: chatId,
+          message_id: messageId,
+          is_upvoted: type === 'up',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
     }
-    return await db.insert(vote).values({
-      chatId,
-      messageId,
-      isUpvoted: type === 'up',
-    });
   } catch (error) {
-    console.error('Failed to upvote message in database', error);
+    console.error('Failed to vote message in database', error);
     throw error;
   }
 }
 
 export async function getVotesByChatId({ id }: { id: string }) {
   try {
-    return await db.select().from(vote).where(eq(vote.chatId, id));
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('votes')
+      .select('*')
+      .eq('chat_id', id);
+
+    if (error) throw error;
+    return data || [];
   } catch (error) {
     console.error('Failed to get votes by chat id from database', error);
     throw error;
   }
 }
 
+// Document operations
 export async function saveDocument({
   id,
   title,
@@ -258,32 +625,24 @@ export async function saveDocument({
   messageId: string;
 }) {
   try {
-    return await db.insert(document).values({
-      id,
-      title,
-      kind,
-      content,
-      userId,
-      messageId,
-      createdAt: new Date(),
-    });
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('documents')
+      .insert({
+        id,
+        title,
+        kind,
+        content,
+        user_id: userId,
+        message_id: messageId,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   } catch (error) {
     console.error('Failed to save document in database', error);
-    throw error;
-  }
-}
-
-async function _getDocumentsById({ id }: { id: string }) {
-  try {
-    const documents = await db
-      .select()
-      .from(document)
-      .where(eq(document.id, id))
-      .orderBy(asc(document.createdAt));
-
-    return documents;
-  } catch (error) {
-    console.error('Failed to get document by id from database', error);
     throw error;
   }
 }
@@ -296,39 +655,42 @@ export async function getDocumentsById({
   userId?: string;
 }) {
   try {
-    // First, get the document and check ownership
-    const documents = await _getDocumentsById({ id });
+    const supabase = await createClient();
 
-    if (documents.length === 0) return [];
+    // First, get the document and check ownership
+    const { data: documents } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('id', id)
+      .order('created_at', { ascending: true });
+
+    if (!documents || documents.length === 0) return [];
 
     const [doc] = documents;
 
-    if (!userId || doc.userId !== userId) {
+    if (!userId || doc.user_id !== userId) {
       // Need to check if chat is public
-      const documentsWithVisibility = await db
-        .select({
-          id: document.id,
-          createdAt: document.createdAt,
-          title: document.title,
-          content: document.content,
-          kind: document.kind,
-          userId: document.userId,
-          messageId: document.messageId,
-          chatVisibility: chat.visibility,
-        })
-        .from(document)
-        .innerJoin(message, eq(document.messageId, message.id))
-        .innerJoin(chat, eq(message.chatId, chat.id))
-        .where(and(eq(document.id, id), eq(chat.visibility, 'public')))
-        .orderBy(asc(document.createdAt));
+      const { data: documentsWithVisibility } = await supabase
+        .from('documents')
+        .select(`
+          *,
+          messages!inner(
+            chat_id,
+            chats!inner(visibility)
+          )
+        `)
+        .eq('id', id)
+        .eq('messages.chats.visibility', 'public')
+        .order('created_at', { ascending: true });
 
-      return documentsWithVisibility;
+      return documentsWithVisibility || [];
     }
 
     return documents;
   } catch (error) {
     console.error(
       'Failed to get documents by id with visibility from database',
+      error,
     );
     throw error;
   }
@@ -336,40 +698,43 @@ export async function getDocumentsById({
 
 export async function getPublicDocumentsById({ id }: { id: string }) {
   try {
-    const documents = await db
-      .select({
-        id: document.id,
-        createdAt: document.createdAt,
-        title: document.title,
-        content: document.content,
-        kind: document.kind,
-        userId: document.userId,
-        messageId: document.messageId,
-      })
-      .from(document)
-      .innerJoin(message, eq(document.messageId, message.id))
-      .innerJoin(chat, eq(message.chatId, chat.id))
-      .where(and(eq(document.id, id), eq(chat.visibility, 'public')))
-      .orderBy(asc(document.createdAt));
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('documents')
+      .select(`
+        *,
+        messages!inner(
+          chat_id,
+          chats!inner(visibility)
+        )
+      `)
+      .eq('id', id)
+      .eq('messages.chats.visibility', 'public')
+      .order('created_at', { ascending: true });
 
-    return documents;
+    if (error) throw error;
+    return data || [];
   } catch (error) {
-    console.error('Failed to get public documents by id from database');
+    console.error('Failed to get public documents by id from database', error);
     throw error;
   }
 }
 
 export async function getDocumentById({ id }: { id: string }) {
   try {
-    const [selectedDocument] = await db
-      .select()
-      .from(document)
-      .where(eq(document.id, id))
-      .orderBy(desc(document.createdAt));
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
-    return selectedDocument;
+    if (error) throw error;
+    return data;
   } catch (error) {
-    console.error('Failed to get document by id from database');
+    console.error('Failed to get document by id from database', error);
     throw error;
   }
 }
@@ -382,52 +747,28 @@ export async function deleteDocumentsByIdAfterTimestamp({
   timestamp: Date;
 }) {
   try {
-    await db
-      .delete(suggestion)
-      .where(
-        and(
-          eq(suggestion.documentId, id),
-          gt(suggestion.documentCreatedAt, timestamp),
-        ),
-      );
+    const supabase = await createClient();
 
-    return await db
-      .delete(document)
-      .where(and(eq(document.id, id), gt(document.createdAt, timestamp)));
+    // Delete suggestions first
+    await supabase
+      .from('suggestions')
+      .delete()
+      .eq('document_id', id)
+      .gt('document_created_at', timestamp.toISOString());
+
+    // Delete documents
+    const { error } = await supabase
+      .from('documents')
+      .delete()
+      .eq('id', id)
+      .gt('created_at', timestamp.toISOString());
+
+    if (error) throw error;
+    return { success: true };
   } catch (error) {
     console.error(
       'Failed to delete documents by id after timestamp from database',
-    );
-    throw error;
-  }
-}
-
-export async function saveSuggestions({
-  suggestions,
-}: {
-  suggestions: Array<Suggestion>;
-}) {
-  try {
-    return await db.insert(suggestion).values(suggestions);
-  } catch (error) {
-    console.error('Failed to save suggestions in database');
-    throw error;
-  }
-}
-
-export async function getSuggestionsByDocumentId({
-  documentId,
-}: {
-  documentId: string;
-}) {
-  try {
-    return await db
-      .select()
-      .from(suggestion)
-      .where(and(eq(suggestion.documentId, documentId)));
-  } catch (error) {
-    console.error(
-      'Failed to get suggestions by document version from database',
+      error,
     );
     throw error;
   }
@@ -441,13 +782,20 @@ export async function getDocumentsByMessageIds({
   if (messageIds.length === 0) return [];
 
   try {
-    return await db
-      .select()
-      .from(document)
-      .where(inArray(document.messageId, messageIds))
-      .orderBy(asc(document.createdAt));
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .in('message_id', messageIds)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
   } catch (error) {
-    console.error('Failed to get documents by message IDs from database');
+    console.error(
+      'Failed to get documents by message IDs from database',
+      error,
+    );
     throw error;
   }
 }
@@ -468,208 +816,96 @@ export async function saveDocuments({
   if (documents.length === 0) return;
 
   try {
-    return await db.insert(document).values(documents);
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('documents')
+      .insert(
+        documents.map((doc) => ({
+          id: doc.id,
+          title: doc.title,
+          kind: doc.kind,
+          content: doc.content,
+          user_id: doc.userId,
+          message_id: doc.messageId,
+          created_at: doc.createdAt.toISOString(),
+        })),
+      )
+      .select();
+
+    if (error) throw error;
+    return data;
   } catch (error) {
     console.error('Failed to save documents in database', error);
     throw error;
   }
 }
 
-export async function getMessageById({ id }: { id: string }) {
+// Suggestion operations
+export async function saveSuggestions({
+  suggestions,
+}: {
+  suggestions: Array<Suggestion>;
+}) {
   try {
-    return await db.select().from(message).where(eq(message.id, id));
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('suggestions')
+      .insert(
+        suggestions.map((s) => ({
+          id: s.id,
+          document_id: s.document_id,
+          document_created_at: s.document_created_at,
+          original_text: s.original_text,
+          suggested_text: s.suggested_text,
+          description: s.description,
+          is_resolved: s.is_resolved,
+          user_id: s.user_id,
+          created_at: s.created_at,
+        })),
+      )
+      .select();
+
+    if (error) throw error;
+    return data;
   } catch (error) {
-    console.error('Failed to get message by id from database');
+    console.error('Failed to save suggestions in database', error);
     throw error;
   }
 }
 
-export async function deleteMessagesByChatIdAfterTimestamp({
-  chatId,
-  timestamp,
+export async function getSuggestionsByDocumentId({
+  documentId,
 }: {
-  chatId: string;
-  timestamp: Date;
+  documentId: string;
 }) {
   try {
-    const messagesToDelete = await db
-      .select()
-      .from(message)
-      .where(
-        and(eq(message.chatId, chatId), gte(message.createdAt, timestamp)),
-      );
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('suggestions')
+      .select('*')
+      .eq('document_id', documentId);
 
-    const messageIds = messagesToDelete.map((message) => message.id);
-
-    if (messageIds.length > 0) {
-      // Clean up attachments before deleting messages
-      await deleteAttachmentsFromMessages(messagesToDelete);
-
-      await db
-        .delete(vote)
-        .where(
-          and(eq(vote.chatId, chatId), inArray(vote.messageId, messageIds)),
-        );
-
-      return await db
-        .delete(message)
-        .where(
-          and(eq(message.chatId, chatId), inArray(message.id, messageIds)),
-        );
-    }
+    if (error) throw error;
+    return data || [];
   } catch (error) {
     console.error(
-      'Failed to delete messages by id after timestamp from database',
+      'Failed to get suggestions by document version from database',
+      error,
     );
     throw error;
   }
 }
 
-export async function deleteMessagesByChatIdAfterMessageId({
-  chatId,
-  messageId,
-}: {
-  chatId: string;
-  messageId: string;
-}) {
-  try {
-    // First, get the target message to find its position in the chat
-    const [targetMessage] = await db
-      .select()
-      .from(message)
-      .where(and(eq(message.id, messageId), eq(message.chatId, chatId)));
-
-    if (!targetMessage) {
-      throw new Error('Target message not found');
-    }
-
-    // Get all messages in the chat ordered by creation time
-    const allMessages = await db
-      .select()
-      .from(message)
-      .where(eq(message.chatId, chatId))
-      .orderBy(asc(message.createdAt));
-
-    // Find the index of the target message
-    const targetIndex = allMessages.findIndex((msg) => msg.id === messageId);
-
-    if (targetIndex === -1) {
-      throw new Error('Target message not found in chat');
-    }
-
-    // Delete all messages after the target message (including the target itself)
-    const messagesToDelete = allMessages.slice(targetIndex);
-    const messageIdsToDelete = messagesToDelete.map((msg) => msg.id);
-
-    if (messageIdsToDelete.length > 0) {
-      // Clean up attachments before deleting messages
-      await deleteAttachmentsFromMessages(messagesToDelete);
-
-      // Delete the messages (votes will be deleted automatically via CASCADE)
-      return await db
-        .delete(message)
-        .where(
-          and(
-            eq(message.chatId, chatId),
-            inArray(message.id, messageIdsToDelete),
-          ),
-        );
-    }
-  } catch (error) {
-    console.error(
-      'Failed to delete messages by chat id after message id from database',
-    );
-    throw error;
-  }
-}
-
-export async function updateChatVisiblityById({
-  chatId,
-  visibility,
-}: {
-  chatId: string;
-  visibility: 'private' | 'public';
-}) {
-  try {
-    return await db.update(chat).set({ visibility }).where(eq(chat.id, chatId));
-  } catch (error) {
-    console.error('Failed to update chat visibility in database');
-    throw error;
-  }
-}
-
-export async function updateChatTitleById({
-  chatId,
-  title,
-}: {
-  chatId: string;
-  title: string;
-}) {
-  try {
-    return await db
-      .update(chat)
-      .set({
-        title,
-      })
-      .where(eq(chat.id, chatId));
-  } catch (error) {
-    console.error('Failed to update chat title by id from database');
-    throw error;
-  }
-}
-
-export async function updateChatIsPinnedById({
-  chatId,
-  isPinned,
-}: {
-  chatId: string;
-  isPinned: boolean;
-}) {
-  try {
-    return await db
-      .update(chat)
-      .set({
-        isPinned,
-      })
-      .where(eq(chat.id, chatId));
-  } catch (error) {
-    console.error('Failed to update chat isPinned by id from database');
-    throw error;
-  }
-}
-
-export async function updateChatUpdatedAt({
-  chatId,
-}: {
-  chatId: string;
-}) {
-  try {
-    return await db
-      .update(chat)
-      .set({
-        updatedAt: new Date(),
-      })
-      .where(eq(chat.id, chatId));
-  } catch (error) {
-    console.error('Failed to update chat updatedAt by id from database');
-    throw error;
-  }
-}
-
-export async function getUserById({
-  userId,
-}: { userId: string }): Promise<User | undefined> {
-  const users = await db
-    .select()
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1);
-  return users[0];
-}
-
+// Attachment operations
 export async function getMessagesWithAttachments() {
   try {
-    return await db.select({ attachments: message.attachments }).from(message);
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('messages')
+      .select('attachments');
+
+    if (error) throw error;
+    return data || [];
   } catch (error) {
     console.error(
       'Failed to get messages with attachments from database',
